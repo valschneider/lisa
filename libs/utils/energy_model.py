@@ -21,6 +21,8 @@ import logging
 import operator
 import re
 
+import json
+
 import pandas as pd
 import numpy as np
 
@@ -867,3 +869,28 @@ class EnergyModel(object):
         return cls(root_node=root,
                    root_power_domain=root_pd,
                    freq_domains=freq_domains)
+
+    def dump_json(self, path):
+        clusters = []
+
+        for cluster in self.root.children:
+            nrg = {}
+            cluster_max = cluster.active_states.items()[-1]
+            nrg["cluster"] = { "nrg_max" : cluster_max[1].power }
+            core_max = cluster.children[0].active_states.items()[-1]
+            nrg["cpu"] = {
+                "nrg_max" : core_max[1].power,
+                "cap_max" : core_max[1].capacity
+            }
+            clusters.append(nrg)
+
+        res = {}
+        res["nrg_model"] = {
+            "little" : clusters[0],
+            "big"    : clusters[1]
+        }
+
+        print res
+
+        with open(path, 'w') as fd:
+            json.dump(res, fd)
