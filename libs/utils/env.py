@@ -551,6 +551,10 @@ class TestEnv(ShareState):
             try:
                 self._log.info('Attempting to read energy model from target')
                 self.nrg_model = EnergyModel.from_target(self.target)
+                if self.nrg_model:
+                    em_path = os.path.join(basepath,
+                        'libs/utils/platforms', self.conf['board'].lower() + '.json')
+                    self.nrg_model.dump_json(em_path)
             except (TargetError, RuntimeError, ValueError) as e:
                 self._log.error("Couldn't read target energy model: %s", e)
 
