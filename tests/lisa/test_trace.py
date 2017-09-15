@@ -27,6 +27,7 @@ class TestTrace(TestCase):
     traces_dir = os.path.join(os.path.dirname(__file__), 'traces')
     events = [
         'sched_switch',
+        'sched_overutilized'
     ]
 
     def __init__(self, *args, **kwargs):
@@ -78,3 +79,37 @@ class TestTrace(TestCase):
         self.assertEqual(trace.getTaskByName('father'), [1234])
 
         os.remove(self.test_trace)
+
+    def test_time_range(self):
+        """
+        TestTrace: time_range is the duration of the trace
+        """
+        expected_duration = 6.6764969999999977
+        
+        trace_path = os.path.join(self.traces_dir, 'trace.txt')
+        trace = Trace(self.platform, trace_path, self.events, normalize_time=False)
+        
+        self.assertEqual(trace.time_range, expected_duration)
+
+    def test_overutilized_times(self):
+        """
+        TestTrace: Overutilized events detected correctly
+        """
+        expected_times = [
+            76.402065000000007,
+            80.402065000000007,
+            82.001337000000007
+        ]
+
+        trace_path = os.path.join(self.traces_dir, 'trace.txt')
+        trace = Trace(self.platform, trace_path, self.events, normalize_time=False)
+
+        df_ou = trace.data_frame.overutilized()
+        
+        self.assertEqual(df_ou.index.tolist(), expected_times)
+
+    def test_overutilized_end(self):
+        """
+        TestTrace: Fake overutilized end flag is appended
+        """
+        pass
