@@ -48,17 +48,14 @@ class AnalysisModule(object):
         # By default assume SMP system
         self._big_cap = 1024
         self._little_cap = 1024
-        self._big_cpus = range(self._platform['cpus_count'])
-        self._little_cpus = []
 
-        if self._trace.has_big_little:
+        if 'clusters' in self._platform:
+            self._clusters = self._platform['clusters']
+        else:
+            self._clusters = {'SMP': range(self._platform['cpus_count'])}
+
+        if self._trace.has_nrg_model:
             self._little_cap = self._platform['nrg_model']['little']['cpu']['cap_max']
-
-        if ('clusters' in self._platform and
-            'big' in self._platform['clusters'] and
-            'little' in self._platform['clusters']):
-            self._big_cpus = self._platform['clusters']['big']
-            self._little_cpus = self._platform['clusters']['little']
 
         trace._registerDataFrameGetters(self)
 

@@ -491,45 +491,35 @@ class TasksAnalysis(AnalysisModule):
                               'plots DISABLED!')
             return
 
-        # Define axes for side-by-side plottings
-        fig, axes = plt.subplots(2, 1, figsize=(14, 5))
-        plt.subplots_adjust(wspace=0.2, hspace=0.3)
 
         if per_cluster:
 
+            # Define axes for side-by-side plottings
+            fig, axes = plt.subplots(len(self._clusters), 1, figsize=(14, 5))
+            plt.subplots_adjust(wspace=0.2, hspace=0.3)
+
             # Get per cluster wakeup events
             df = self._dfg_trace_event('sched_wakeup_new')
-            big_frequent = df.target_cpu.isin(self._big_cpus)
-            ntbc = df[big_frequent]
-            ntbc_count = len(ntbc)
-            little_frequent = df.target_cpu.isin(self._little_cpus)
-            ntlc = df[little_frequent];
-            ntlc_count = len(ntlc)
+            for idx, (cluster, cpus) in enumerate(self._clusters.iteritems()):
+                frequent = df.target_cpu.isin(cpus)
+                ntc = df[frequent]
+                ntc_count = len(ntbc)
+                # ???: percentage stuff
+                self._log.info('%5d tasks forked on big cluster', ntc_count)
 
-            self._log.info('%5d tasks forked on big cluster    (%3.1f %%)',
-                           ntbc_count,
-                           100. * ntbc_count / (ntbc_count + ntlc_count))
-            self._log.info('%5d tasks forked on LITTLE cluster (%3.1f %%)',
-                           ntlc_count,
-                           100. * ntlc_count / (ntbc_count + ntlc_count))
-
-            ax = axes[0]
-            ax.set_title('Tasks Forks on big CPUs');
-            ntbc.pid.plot(style=['g.'], ax=ax);
-            ax.set_xlim(self._trace.x_min, self._trace.x_max);
-            ax.set_xticklabels([])
-            ax.set_xlabel('')
-            ax.grid(True)
-            self._trace.analysis.status.plotOverutilized(ax)
-
-            ax = axes[1]
-            ax.set_title('Tasks Forks on LITTLE CPUs');
-            ntlc.pid.plot(style=['g.'], ax=ax);
-            ax.set_xlim(self._trace.x_min, self._trace.x_max);
-            ax.grid(True)
-            self._trace.analysis.status.plotOverutilized(ax)
+                ax = axes[idx]
+                ax.set_title('Tasks Forks on {} cluster CPUs'.format(cluster));
+                ntc.pid.plot(style=['g.'], ax=ax);
+                ax.set_xlim(self._trace.x_min, self._trace.x_max);
+                ax.set_xticklabels([])
+                ax.set_xlabel('')
+                ax.grid(True)
+                self._trace.analysis.status.plotOverutilized(ax)
 
             return
+
+        # Define axes for side-by-side plottings
+        fig, axes = plt.subplots(2, 1, figsize=(14, 5))
 
         # Keep events of defined big tasks
         wkp_task_pids = self._dfg_top_wakeup_tasks(min_wakeups)
@@ -590,10 +580,10 @@ class TasksAnalysis(AnalysisModule):
 
         if big_cluster:
             cluster_correct = 'big'
-            cpus = self._big_cpus
+            cpus = self._clusters['big']
         else:
             cluster_correct = 'LITTLE'
-            cpus = self._little_cpus
+            cpus = self._clusters['little']
 
         # Keep events of defined big tasks
         big_task_pids = self._dfg_top_big_tasks(
@@ -613,9 +603,9 @@ class TasksAnalysis(AnalysisModule):
         # a) task utilization value
         # b) capacity of the selected cluster
         bu_bc = ((df['util_avg'] > self._little_cap) &
-                 (df['cpu'].isin(self._big_cpus)))
+                 (df['cpu'].isin(self._clusters['big'])))
         su_lc = ((df['util_avg'] <= self._little_cap) &
-                 (df['cpu'].isin(self._little_cpus)))
+                 (df['cpu'].isin(self._clusters['little'])))
 
         # The Cluster CAPacity Matches the UTILization (ccap_mutil) iff:
         # - tasks with util_avg  > little_cap are running on a BIG cpu

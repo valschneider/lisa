@@ -106,18 +106,12 @@ class CpusAnalysis(AnalysisModule):
 
         # Filter on specified cpus
         if cpus is None:
-            cpus = sorted(self._big_cpus + self._little_cpus)
+            cpus = sorted([cpu for cpus in self._clusters.values() for cpu in cpus])
 
-        # Plot: big CPUs
-        bcpus = set(cpus).intersection(self._big_cpus)
-        if bcpus:
-            self._plotCPU(bcpus, "big")
-
-        # Plot: LITTLE CPUs
-        lcpus = set(cpus).intersection(self._little_cpus)
-        if lcpus:
-            self._plotCPU(lcpus, "LITTLE")
-
+        for cluster, cl_cpus in self._clusters.iteritems():
+            _cpus = set(cpus).intersection(cl_cpus)
+            if _cpus:
+                self._plotCPU(_cpus, cluster)
 
 ###############################################################################
 # Utility Methods

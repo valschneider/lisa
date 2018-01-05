@@ -191,9 +191,11 @@ class IdleAnalysis(AnalysisModule):
 
         # Split between big and LITTLE CPUs ordered from higher to lower ID
         _cpus.reverse()
-        big_cpus = [c for c in _cpus if c in self._big_cpus]
-        little_cpus = [c for c in _cpus if c in self._little_cpus]
-        _cpus = big_cpus + little_cpus
+
+        if self._trace.has_big_little:
+            big_cpus = [c for c in _cpus if c in self._clusters['big']]
+            little_cpus = [c for c in _cpus if c in self._clusters['little']]
+            _cpus = big_cpus + little_cpus
 
         residencies = []
         xmax = 0.0
