@@ -457,11 +457,14 @@ class Trace(object):
 # Trace Events Sanitize Methods
 ###############################################################################
     @property
+    def has_nrg_model(self):
+        return 'nrg_model' in self.platform
+
+    @property
     def has_big_little(self):
         return ('clusters' in self.platform
                 and 'big' in self.platform['clusters']
-                and 'little' in self.platform['clusters']
-                and 'nrg_model' in self.platform)
+                and 'little' in self.platform['clusters'])
 
     def _sanitize_SchedCpuCapacity(self):
         """
@@ -469,7 +472,7 @@ class Trace(object):
         available and the platform is big.LITTLE.
         """
         if not self.hasEvents('cpu_capacity') \
-           or 'nrg_model' not in self.platform \
+           or not self.has_nrg_model \
            or not self.has_big_little:
             return
 
@@ -551,7 +554,7 @@ class Trace(object):
         Also convert between existing field name formats for sched_energy_diff
         """
         if not self.hasEvents('sched_energy_diff') \
-           or 'nrg_model' not in self.platform \
+           or not self.has_nrg_model \
            or not self.has_big_little:
             return
         nrg_model = self.platform['nrg_model']
