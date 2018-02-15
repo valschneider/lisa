@@ -33,7 +33,8 @@ Contents:
 
 .. toctree::
 
-  modules
+   libs
+   tests
 
 Indices and tables
 ==================
