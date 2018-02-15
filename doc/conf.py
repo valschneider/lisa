@@ -23,9 +23,22 @@ import sys
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #sys.path.insert(0, os.path.abspath('.'))
 lisa_home = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
-sys.path.insert(0, lisa_home)
-for lib in ['utils', 'wlgen', 'trappy', 'bart', 'devlib']:
-    sys.path.insert(0, os.path.join(lisa_home, 'libs', lib))
+#sys.path.insert(0, lisa_home)
+
+#def get_modules(root):
+
+
+dirs = [
+    #os.path.join(lisa_home, 'libs'),
+    os.path.join(lisa_home, 'tests'),
+]
+
+for lib in dirs:
+    sys.path.insert(0, lib)
+#for lib in ['utils', 'wlgen', 'trappy', 'bart', 'devlib']:
+#    sys.path.insert(0, os.path.join(lisa_home, 'libs', lib))
+
+
 
 # -- General configuration ------------------------------------------------
 
