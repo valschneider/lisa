@@ -27,7 +27,7 @@ some Python sources containing the definition of stages for each test and some
 initial spark like ``--conf`` or ``--load-db``.
 
 ``--conf`` will usually be used with a YAML configuration file in the format
-specified by :class:`~lisa.env.TargetConf`.
+specified by :class:`~lisa.target.TargetConf`.
 
 .. code-block:: sh
 
