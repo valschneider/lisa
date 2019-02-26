@@ -1213,7 +1213,13 @@ class ComputableExpression(ExpressionBase):
                     post_compute_cb=post_compute_cb,
                 ))
                 for param, param_expr in param_map.items()
-                if param_expr.op.reusable == reusable
+                if (
+                    param_expr.op.reusable == reusable
+                    or
+                    # Consumer is considered reusable for the purpose of
+                    # looking up already-computed objects
+                    (reusable and param_expr.op.callable_ is Consumer)
+                )
             )
 
         # Get all the generators for reusable parameters
