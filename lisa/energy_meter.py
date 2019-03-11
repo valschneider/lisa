@@ -45,14 +45,6 @@ from bart.common.Utils import area_under_curve
 EnergyReport = namedtuple('EnergyReport',
                           ['channels', 'report_file', 'data_frame'])
 
-class EnergyMeterConf(MultiSrcConf, HideExekallID):
-    """
-    Configuration class for :class:`EnergyMeter`.
-    """
-    STRUCTURE = TopLevelKeyDesc('emeter-conf', 'Energy Meter configuration', (
-        KeyDesc('name', 'Value of name attribute of the EnergyMeter subclass to use', [str]),
-        KeyDesc('conf', 'Emeter configuration, depending on the type of emeter used', [Mapping]),
-    ))
 
 class EnergyMeter(Loggable, abc.ABC):
     """
@@ -66,31 +58,9 @@ class EnergyMeter(Loggable, abc.ABC):
         )
         self._res_dir = res_dir
 
-    @classmethod
-    def get_meter(cls, name, conf, target, res_dir=None):
-        """
-        Choose the appropriate :class:`EnergyMeter` subclass and build an
-        instance of it.
-
-        :param name: Name matching the ``name`` class attribute of energy meters
-        :type name: str
-
-        :param conf: Configuration mapping passed to the :class:`EnergyMeter`
-            subclass.
-        :type conf: collections.abc.Mapping
-        """
-        logger = cls.get_logger()
-        logger.debug('Results dir: %s', res_dir)
-
-        for subcls in get_subclasses(cls):
-            if not inspect.isabstract(subcls):
-                if name == subcls.name:
-                    return subcls(target, conf, res_dir)
-
-        raise ValueError('No EnergyMeter has name "{}"'.format(name))
 
     @classmethod
-    def from_conf(cls, target:Target, conf:EnergyMeterConf, res_dir:ArtifactPath=None) -> 'EnergyMeter':
+    def from_conf(cls, target, conf, res_dir=None):
         """
         Build an instance of :class:`EnergyMeter` from a configuration object.
 
@@ -100,13 +70,17 @@ class EnergyMeter(Loggable, abc.ABC):
         :type target: lisa.target.Target
 
         :param conf: Configuration to use
-        :type conf: EnergyMeterConf
+        :type conf: Configuration object
+
+        :param res_dir: Result directory to use
+        :type res_dir: str or None
         """
-        return cls.get_meter(
-            name=conf['name'],
-            conf=conf['conf'],
+        kwargs = cls.conf_to_init_kwargs(conf)
+        cls.check_init_param(**kwargs)
+        return cls(
             target=target,
             res_dir=res_dir,
+            **kwargs,
         )
 
     @abc.abstractmethod
@@ -125,10 +99,22 @@ class EnergyMeter(Loggable, abc.ABC):
     def report(self):
         pass
 
+class HWMonConf(MultiSrcConf, HideExekallID):
+    """
+    Configuration class for :class:`HWmon`.
+
+    {generated_help}
+    """
+    STRUCTURE = TopLevelKeyDesc('hwmon-conf', 'HWmon Energy Meter configuration', (
+        #TODO: find a better help and type
+        KeyDesc('channel-map', 'Channels to use', [object]),
+    ))
+
 class HWMon(EnergyMeter):
+    CONF_CLASS = HWMonConf
     name = 'hwmon'
 
-    def __init__(self, target, conf=None, res_dir=None):
+    def __init__(self, target, channel_map, res_dir=None):
         super().__init__(target, res_dir)
         logger = self.get_logger()
 
@@ -150,7 +136,7 @@ class HWMon(EnergyMeter):
 
         available_sites = [c.site for c in self._hwmon.get_channels('energy')]
 
-        self._channels = conf.get('channel_map')
+        self._channels = channel_map
         if self._channels:
             # If the user provides a channel_map then require it to be correct.
             if not all (s in available_sites for s in list(self._channels.values())):
