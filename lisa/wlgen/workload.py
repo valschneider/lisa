@@ -65,7 +65,7 @@ class Workload(Loggable):
         >>> printer.run()
         INFO    : Printer      : Execution start: echo 42
         INFO    : Printer      : Execution complete
-        >>> print printer.output
+        >>> print(printer.output)
         42\r\n
     """
 
