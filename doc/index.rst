@@ -30,16 +30,33 @@ Contents:
 .. toctree::
    :maxdepth: 2
 
-   overview
-   users_guide
-   contributors_guide
-   kernel_tests
-   automated_testing
-   wlgen
-   internals
-   analysis
-   lisa_tests
+   first_separator
 
+   overview
+   setup
+   lisa_shell
+   transition_guide
+
+   guides_separator
+
+   contributors_guide
+   workflows/index
+
+   api_separator
+
+   target
+   workloads
+   kernel_tests
+   trace_analysis
+   energy_analysis
+   misc_utilities
+
+..
+  tools_separator
+
+..
+  bisector
+  exekall
 
 Indices and tables
 ==================
