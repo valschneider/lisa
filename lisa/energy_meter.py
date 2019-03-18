@@ -25,6 +25,7 @@ import logging
 import inspect
 import abc
 
+from shutil import which
 from collections import namedtuple
 from collections.abc import Mapping
 from subprocess import Popen, PIPE, STDOUT
@@ -36,7 +37,9 @@ import pandas as pd
 import devlib
 
 from lisa.utils import Loggable, get_subclasses, ArtifactPath, HideExekallID
-from lisa.conf import MultiSrcConf, KeyDesc, TopLevelKeyDesc, StrList, Configurable
+from lisa.conf import (
+    MultiSrcConf, KeyDesc, LevelKeyDesc, TopLevelKeyDesc, StrIntDict, Configurable
+)
 from lisa.target import Target
 
 from bart.common.Utils import area_under_curve
@@ -46,7 +49,7 @@ EnergyReport = namedtuple('EnergyReport',
                           ['channels', 'report_file', 'data_frame'])
 
 
-class EnergyMeter(Loggable, abc.ABC):
+class EnergyMeter(Loggable, Configurable, abc.ABC):
     """
     Abstract Base Class of energy meters.
     """
@@ -315,10 +318,23 @@ _acme_install_instructions = '''
 
 '''
 
+class ACMEConf(MultiSrcConf, HideExekallID):
+    """
+    Configuration class for :class:`ACME`.
+
+    {generated_help}
+    """
+    STRUCTURE = TopLevelKeyDesc('acme-conf', 'ACME Energy Meter configuration', (
+        KeyDesc('iio-capture', 'iio-capture binary to use', [str]),
+        KeyDesc('ip-address', 'IP address of the ACME board', [str]),
+        KeyDesc('channel-map', 'Channels to use (friendly name to ID mapping)', [StrIntDict]),
+    ))
+
 class ACME(EnergyMeter):
     """
     BayLibre's ACME board based EnergyMeter
     """
+    CONF_CLASS = ACMEConf
     name = 'acme'
 
     REPORT_DELAY_S = 2.0
@@ -327,21 +343,17 @@ class ACME(EnergyMeter):
     so we have to enforce a delay between reset() and report()
     """
 
-    def __init__(self, target, conf, res_dir):
+    def __init__(self, target, channel_map,
+                 iio_capture=which("iio-capture"),
+                 ip_address="baylibre-acme.local",
+                 res_dir=None):
         super().__init__(target, res_dir)
         logger = self.get_logger()
 
-        # Assume iio-capture is available in PATH
-        iioc = conf.get('conf', {
-            'iio-capture' : 'iio-capture',
-            'ip_address'  : 'baylibre-acme.local',
-        })
-        self._iiocapturebin = iioc.get('iio-capture', 'iio-capture')
-        self._hostname = iioc.get('ip_address', 'baylibre-acme.local')
+        self._iiocapturebin = iio_capture
+        self._hostname = ip_address
 
-        self._channels = conf.get('channel_map', {
-            'CH0': '0'
-        })
+        self._channels = channel_map
         self._iio = {}
 
         logger.info('ACME configuration:')

@@ -1381,6 +1381,9 @@ class IntListList(TypedList):
 class StrList(TypedList):
     _type = str
 
+class StrIntDict(TypedDict):
+    _type = (str, int)
+
 class StrIntListDict(TypedDict):
     _type = (str, IntList)
 
