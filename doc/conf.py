@@ -113,6 +113,7 @@ if RTD:
         env=source_env,
     )
     os.environ.update(json.loads(out))
+    print(os.environ)
 
 # -- General configuration ------------------------------------------------
 
