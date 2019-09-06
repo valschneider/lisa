@@ -31,7 +31,10 @@ import pexpect
 import xml.etree.ElementTree
 import zipfile
 
-from pipes import quote
+try:
+    from shlex import quote
+except ImportError:
+    from pipes import quote
 
 from devlib.exception import TargetTransientError, TargetStableError, HostError
 from devlib.utils.misc import check_output, which, ABI_MAP
@@ -236,30 +239,11 @@ class AdbConnection(object):
     active_connections = defaultdict(int)
     default_timeout = 10
     ls_command = 'ls'
+    su_cmd = 'su -c {}'
 
     @property
     def name(self):
         return self.device
-
-    # Again, we need to handle boards where the default output format from ls is
-    # single column *and* boards where the default output is multi-column.
-    # We need to do this purely because the '-1' option causes errors on older
-    # versions of the ls tool in Android pre-v7.
-    def _setup_ls(self):
-        command = "shell '(ls -1); echo \"\n$?\"'"
-        try:
-            output = adb_command(self.device, command, timeout=self.timeout, adb_server=self.adb_server)
-        except subprocess.CalledProcessError as e:
-            raise HostError(
-                'Failed to set up ls command on Android device. Output:\n'
-                + e.output)
-        lines = output.splitlines()
-        retval = lines[-1].strip()
-        if int(retval) == 0:
-            self.ls_command = 'ls -1'
-        else:
-            self.ls_command = 'ls'
-        logger.debug("ls command is set to {}".format(self.ls_command))
 
     # pylint: disable=unused-argument
     def __init__(self, device=None, timeout=None, platform=None, adb_server=None):
@@ -271,6 +255,7 @@ class AdbConnection(object):
         adb_connect(self.device)
         AdbConnection.active_connections[self.device] += 1
         self._setup_ls()
+        self._setup_su()
 
     def push(self, source, dest, timeout=None):
         if timeout is None:
@@ -300,7 +285,7 @@ class AdbConnection(object):
                 as_root=False, strip_colors=True, will_succeed=False):
         try:
             return adb_shell(self.device, command, timeout, check_exit_code,
-                             as_root, adb_server=self.adb_server)
+                             as_root, adb_server=self.adb_server, su_cmd=self.su_cmd)
         except TargetStableError as e:
             if will_succeed:
                 raise TargetTransientError(e)
@@ -321,6 +306,37 @@ class AdbConnection(object):
         # other, so there is no need to explicitly cancel a running command
         # before the next one can be issued.
         pass
+
+    # Again, we need to handle boards where the default output format from ls is
+    # single column *and* boards where the default output is multi-column.
+    # We need to do this purely because the '-1' option causes errors on older
+    # versions of the ls tool in Android pre-v7.
+    def _setup_ls(self):
+        command = "shell '(ls -1); echo \"\n$?\"'"
+        try:
+            output = adb_command(self.device, command, timeout=self.timeout, adb_server=self.adb_server)
+        except subprocess.CalledProcessError as e:
+            raise HostError(
+                'Failed to set up ls command on Android device. Output:\n'
+                + e.output)
+        lines = output.splitlines()
+        retval = lines[-1].strip()
+        if int(retval) == 0:
+            self.ls_command = 'ls -1'
+        else:
+            self.ls_command = 'ls'
+        logger.debug("ls command is set to {}".format(self.ls_command))
+
+    def _setup_su(self):
+        try:
+            # Try the new style of invoking `su`
+            self.execute('ls', timeout=self.timeout, as_root=True,
+                         check_exit_code=True)
+        # If failure assume either old style or unrooted. Here we will assume
+        # old style and root status will be verified later.
+        except (TargetStableError, TargetTransientError, TimeoutError):
+            self.su_cmd = 'echo {} | su'
+        logger.debug("su command is set to {}".format(quote(self.su_cmd)))
 
 
 def fastboot_command(command, timeout=None, device=None):
@@ -420,25 +436,27 @@ def _ping(device):
 
 # pylint: disable=too-many-locals
 def adb_shell(device, command, timeout=None, check_exit_code=False,
-              as_root=False, adb_server=None):  # NOQA
+              as_root=False, adb_server=None, su_cmd='su -c {}'):  # NOQA
     _check_env()
-    if as_root:
-        command = 'echo {} | su'.format(quote(command))
-    device_part = []
-    if adb_server:
-        device_part = ['-H', adb_server]
-    device_part += ['-s', device] if device else []
 
     # On older combinations of ADB/Android versions, the adb host command always
     # exits with 0 if it was able to run the command on the target, even if the
     # command failed (https://code.google.com/p/android/issues/detail?id=3254).
     # Homogenise this behaviour by running the command then echoing the exit
-    # code.
-    adb_shell_command = '({}); echo \"\n$?\"'.format(command)
-    actual_command = ['adb'] + device_part + ['shell', adb_shell_command]
-    logger.debug('adb {} shell {}'.format(' '.join(device_part), command))
+    # code of the executed command itself.
+    command = r'({}); echo "\n$?"'.format(command)
+
+    parts = ['adb']
+    if adb_server is not None:
+        parts += ['-H', adb_server]
+    if device is not None:
+        parts += ['-s', device]
+    parts += ['shell',
+              command if not as_root else su_cmd.format(quote(command))]
+
+    logger.debug(' '.join(quote(part) for part in parts))
     try:
-        raw_output, _ = check_output(actual_command, timeout, shell=False, combined_output=True)
+        raw_output, _ = check_output(parts, timeout, shell=False, combined_output=True)
     except subprocess.CalledProcessError as e:
         raise TargetStableError(str(e))
 

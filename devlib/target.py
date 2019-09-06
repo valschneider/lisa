@@ -29,6 +29,7 @@ import threading
 import xml.dom.minidom
 import copy
 from collections import namedtuple, defaultdict
+from contextlib import contextmanager
 from pipes import quote
 from past.builtins import long
 from past.types import basestring
@@ -51,6 +52,7 @@ from devlib.utils.android import AdbConnection, AndroidProperties, LogcatMonitor
 from devlib.utils.misc import memoized, isiterable, convert_new_lines
 from devlib.utils.misc import commonprefix, merge_lists
 from devlib.utils.misc import ABI_MAP, get_cpu_name, ranges_to_list
+from devlib.utils.misc import batch_contextmanager
 from devlib.utils.types import integer, boolean, bitmask, identifier, caseless_string, bytes_regex
 
 
@@ -69,7 +71,6 @@ GOOGLE_DNS_SERVER_ADDRESS = '8.8.8.8'
 
 
 installed_package_info = namedtuple('installed_package_info', 'apk_path package')
-
 
 class Target(object):
 
@@ -384,10 +385,19 @@ class Target(object):
     # execution
 
     def execute(self, command, timeout=None, check_exit_code=True,
-                as_root=False, strip_colors=True, will_succeed=False):
+                as_root=False, strip_colors=True, will_succeed=False,
+                force_locale='C'):
+
+        # Force the locale if necessary for more predictable output
+        if force_locale:
+            # Use an explicit export so that the command is allowed to be any
+            # shell statement, rather than just a command invocation
+            command = 'export LC_ALL={} && {}'.format(quote(force_locale), command)
+
         # Ensure to use deployed command when availables
         if self.executables_directory:
-            command = "PATH={}:$PATH && {}".format(self.executables_directory, command)
+            command = "export PATH={}:$PATH && {}".format(quote(self.executables_directory), command)
+
         return self.conn.execute(command, timeout=timeout,
                 check_exit_code=check_exit_code, as_root=as_root,
                 strip_colors=strip_colors, will_succeed=will_succeed)
@@ -480,6 +490,18 @@ class Target(object):
 
     def read_bool(self, path):
         return self.read_value(path, kind=boolean)
+
+    @contextmanager
+    def revertable_write_value(self, path, value, verify=True):
+        orig_value = self.read_value(path)
+        try:
+            self.write_value(path, value, verify)
+            yield
+        finally:
+            self.write_value(path, orig_value, verify)
+
+    def batch_revertable_write_value(self, kwargs_list):
+        return batch_contextmanager(self.revertable_write_value, kwargs_list)
 
     def write_value(self, path, value, verify=True):
         value = str(value)
@@ -2009,6 +2031,9 @@ class KernelConfig(object):
 
     This class does not provide a Mapping API and only return string values.
     """
+    @staticmethod
+    def get_config_name(name):
+        return TypedKernelConfig.get_config_name(name)
 
     def __init__(self, text):
         # Expose typed_config as a non-private attribute, so that user code
@@ -2017,7 +2042,9 @@ class KernelConfig(object):
         # Expose the original text for backward compatibility
         self.text = text
 
-    get_config_name = TypedKernelConfig.get_config_name
+    def __bool__(self):
+        return bool(self.typed_config)
+
     not_set_regex = TypedKernelConfig.not_set_regex
 
     def iteritems(self):
