@@ -51,13 +51,34 @@ class UserspaceSanityItem(TestBundle):
             If that has been done in advance, not doing it for every item saves substantial time.
         :type switch_governor: bool
         """
-
+        def read_freq():
+            return target.read_value("/sys/kernel/debug/clk/clk_summary")
         sysbench = Sysbench(target, "sysbench", res_dir)
 
         cm = target.cpufreq.use_governor('userspace') if switch_governor else nullcontext()
         with cm:
+            freq_start = read_freq()
             target.cpufreq.set_frequency(cpu, freq)
+            freq_mid = read_freq()
             sysbench.run(cpus=[cpu], max_duration_s=1)
+            freq_end = read_freq()
+
+            therm = []
+            for entry in target.list_directory("/sys/class/thermal/"):
+                if entry.startswith("cooling_device"):
+                    therm.append(target.read_value("/sys/class/thermal/{}/cur_state".format(entry)))
+
+        logger = cls.get_logger()
+        logger.info("=== clocks ===")
+        logger.info("--- start ---")
+        logger.info(freq_start)
+        logger.info("--- mid ---")
+        logger.info(freq_mid)
+        logger.info("--- end ---")
+        logger.info(freq_end)
+
+        logger.info("=== thermal ===")
+        logger.info(therm)
 
         work = sysbench.output.nr_events
         return cls(res_dir, target.plat_info, cpu, freq, work)
