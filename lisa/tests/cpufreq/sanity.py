@@ -87,6 +87,8 @@ class UserspaceSanityItem(TestBundle):
 
             logger.info("=== thermal ===")
             logger.info(therm)
+            logger.info("(time_in_state)")
+            logger.info(read_stats(cpu))
 
         work = sysbench.output.nr_events
         return cls(res_dir, target.plat_info, cpu, freq, work)
