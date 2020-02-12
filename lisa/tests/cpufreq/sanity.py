@@ -53,32 +53,40 @@ class UserspaceSanityItem(TestBundle):
         """
         def read_freq():
             return target.read_value("/sys/kernel/debug/clk/clk_summary")
+        def read_stats(cpu):
+            return target.read_value("/sys/devices/system/cpu/cpu{}/cpufreq/stats/time_in_state".format(cpu))
+
         sysbench = Sysbench(target, "sysbench", res_dir)
+
+        logger = cls.get_logger()
+        logger.info("cpu{}@{}Hz".format(cpu, freq))
 
         cm = target.cpufreq.use_governor('userspace') if switch_governor else nullcontext()
         with cm:
-            freq_start = read_freq()
+            logger.info("=== freqs ===")
+            logger.info("--- start ---")
+            logger.info("Hz={}".format(target.cpufreq.get_frequency(cpu)))
+            logger.info(read_freq())
+            logger.info("(time_in_state)")
+            logger.info(read_stats(cpu))
+
             target.cpufreq.set_frequency(cpu, freq)
-            freq_mid = read_freq()
+            logger.info("--- mid ---")
+            logger.info("Hz={}".format(target.cpufreq.get_frequency(cpu)))
+            logger.info(read_freq())
+
             sysbench.run(cpus=[cpu], max_duration_s=1)
-            freq_end = read_freq()
+            logger.info("--- end ---")
+            logger.info("Hz={}".format(target.cpufreq.get_frequency(cpu)))
+            logger.info(read_freq())
 
             therm = []
             for entry in target.list_directory("/sys/class/thermal/"):
                 if entry.startswith("cooling_device"):
                     therm.append(target.read_value("/sys/class/thermal/{}/cur_state".format(entry)))
 
-        logger = cls.get_logger()
-        logger.info("=== clocks ===")
-        logger.info("--- start ---")
-        logger.info(freq_start)
-        logger.info("--- mid ---")
-        logger.info(freq_mid)
-        logger.info("--- end ---")
-        logger.info(freq_end)
-
-        logger.info("=== thermal ===")
-        logger.info(therm)
+            logger.info("=== thermal ===")
+            logger.info(therm)
 
         work = sysbench.output.nr_events
         return cls(res_dir, target.plat_info, cpu, freq, work)
